@@ -34,7 +34,7 @@
 #define RESET_PIN 14
 
 #define POWER_ON_PIN 13
-#define POWER_OFF_PIN 16
+#define POWER_OFF_PIN 9
 #define POWER_SENSE_PIN 39
 
 #define POWER_OFF_ALT_PIN 12
