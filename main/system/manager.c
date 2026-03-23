@@ -35,14 +35,8 @@
 
 #define POWER_ON_PIN 13
 #define POWER_OFF_PIN 9
-#define POWER_SENSE_PIN 39
 
 #define POWER_OFF_ALT_PIN 12
-
-#define SENSE_P1_PIN 35
-#define SENSE_P2_PIN 36
-#define SENSE_P3_PIN 32
-#define SENSE_P4_PIN 33
 
 #define SENSE_P1_ALT_PIN 15
 #define SENSE_P2_ALT_PIN 34
@@ -63,11 +57,6 @@ enum {
     SYS_MGR_BTN_STATE3,
 };
 
-#ifdef CONFIG_BLUERETRO_HW2
-static uint8_t sense_list[] = {
-    SENSE_P1_PIN, SENSE_P2_PIN, SENSE_P3_PIN, SENSE_P4_PIN
-};
-#endif
 static uint8_t led_list[] = {
     LED_P1_PIN, LED_P2_PIN, LED_P3_PIN, LED_P4_PIN
 };
@@ -103,16 +92,7 @@ static const sys_mgr_cmd_t sys_mgr_cmds[] = {
 };
 
 static inline uint32_t sense_port_is_empty(uint32_t index) {
-#ifdef CONFIG_BLUERETRO_HW2
-    if (hw_config.ports_sense_input_polarity) {
-        return !gpio_get_level(sense_list[index]);
-    }
-    else {
-        return gpio_get_level(sense_list[index]);
-    }
-#else
-    return 1;
-#endif
+    return 1; // 1 = port empty
 }
 
 static inline void set_power_on(uint32_t state) {
@@ -347,11 +327,7 @@ static void wired_port_hdl(void) {
         port_state = port_mask;
         if (hw_config.ports_sense_p3_p4_as_output) {
             /* Toggle Wii classic sense line to force ctrl reinit */
-            set_sense_out(SENSE_P3_PIN, 0);
-            set_sense_out(SENSE_P4_PIN, 0);
             vTaskDelay(hw_config.ports_sense_output_ms / portTICK_PERIOD_MS);
-            set_sense_out(SENSE_P3_PIN, 1);
-            set_sense_out(SENSE_P4_PIN, 1);
         }
     }
 }
@@ -508,16 +484,7 @@ static void sys_mgr_power_off(void) {
 }
 
 static int32_t sys_mgr_get_power(void) {
-#ifdef CONFIG_BLUERETRO_SYSTEM_UNIVERSAL
     return 1;
-#else
-    if (hw_config.external_adapter) {
-        return 1;
-    }
-    else {
-        return gpio_get_level(POWER_SENSE_PIN);
-    }
-#endif
 }
 
 static int32_t sys_mgr_get_boot_btn(void) {
@@ -627,17 +594,11 @@ void sys_mgr_init(uint32_t package) {
         case SATURN:
             hw_config.port_cnt = 2;
 #ifdef CONFIG_BLUERETRO_HW2
-            sense_list[0] = SENSE_P1_ALT_PIN;
-            sense_list[1] = SENSE_P2_ALT_PIN;
             power_off_pin = POWER_OFF_ALT_PIN;
 #endif
             break;
         case JAGUAR:
             hw_config.port_cnt = 1;
-#ifdef CONFIG_BLUERETRO_HW2
-            sense_list[0] = SENSE_P1_ALT_PIN;
-            sense_list[1] = SENSE_P2_ALT_PIN;
-#endif
             break;
         case WII_EXT:
             hw_config.port_cnt = 2;
@@ -689,12 +650,6 @@ void sys_mgr_init(uint32_t package) {
     }
 
 #ifdef CONFIG_BLUERETRO_HW2
-    for (uint32_t i = 0; i < hw_config.port_cnt; i++) {
-        io_conf.pin_bit_mask = 1ULL << sense_list[i];
-        gpio_config(&io_conf);
-    }
-    io_conf.pin_bit_mask = 1ULL << POWER_SENSE_PIN;
-    gpio_config(&io_conf);
 #endif
 
 #ifndef CONFIG_BLUERETRO_HW2
@@ -706,10 +661,6 @@ void sys_mgr_init(uint32_t package) {
     io_conf.mode = GPIO_MODE_OUTPUT;
     for (uint32_t i = 0; i < led_init_cnt; i++) {
 #ifdef CONFIG_BLUERETRO_HW2
-        /* Skip pin 15 if alt sense pin are used */
-        if (sense_list[0] == led_list[i]) {
-            continue;
-        }
 #endif
         gpio_set_level(led_list[i], 0);
         io_conf.pin_bit_mask = 1ULL << led_list[i];
@@ -756,14 +707,10 @@ void sys_mgr_init(uint32_t package) {
             io_conf.mode = GPIO_MODE_OUTPUT;
         }
         io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.pin_bit_mask = 1ULL << SENSE_P4_PIN;
         io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
         io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
         gpio_config(&io_conf);
-        gpio_set_level(SENSE_P4_PIN, 1);
-        io_conf.pin_bit_mask = 1ULL << SENSE_P3_PIN;
         gpio_config(&io_conf);
-        gpio_set_level(SENSE_P3_PIN, 1);
     }
 
     /* If boot switch pressed at boot, trigger system on and goes to deep sleep */
